@@ -20,6 +20,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model_name = MODEL.split('/')[-1]
 df = pd.read_csv(DATASET, lineterminator='\n', escapechar='\\')
 df = df[:10]
+print('DATASET =', DATASET)
 df['text'] = df['text'].astype(str)
 if "generated" in df.columns:
     df['generated'] = df['generated'].astype(str)
