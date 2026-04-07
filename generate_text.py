@@ -19,14 +19,14 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # load data
 model_name = MODEL.split('/')[-1]
 df = pd.read_csv(DATASET, lineterminator='\n', escapechar='\\')
+df.columns = df.columns.str.strip()
 df = df[:10]
-print('DATASET =', DATASET)
-print(df.columns)
+
 df['text'] = df['text'].astype(str)
 if "generated" in df.columns:
     df['generated'] = df['generated'].astype(str)
 df.fillna("", inplace=True)
-df = df[df.label != 'label'].reset_index(drop=True)
+
 
 df['text'] = ["nan" if x=="" else x for x in df["text"]]
 if 'generated' in df.columns:
