@@ -1,7 +1,13 @@
-openai_organization = ""
-openai_api_key = ""
-hf_token = ""
-CACHE = "./cache/"
+import os
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
+openai_organization = os.getenv("OPENAI_ORGANIZATION", "")
+openai_api_key = os.getenv("OPENAI_API_KEY", "")
+hf_token = os.getenv("HF_TOKEN", "")
+CACHE = os.getenv("CACHE_DIR", "./cache/")
 
 import sys
 MODEL = sys.argv[1]
@@ -44,11 +50,11 @@ tokenizer = None
 model = None
 
 if text2text:
-    tokenizer = AutoTokenizer.from_pretrained(MODEL, trust_remote_code=True, cache_dir=CACHE)
-    model = AutoModelForSeq2SeqLM.from_pretrained(MODEL, device_map="auto", quantization_config=quantization_config, trust_remote_code=True, cache_dir=CACHE)
+    tokenizer = AutoTokenizer.from_pretrained(MODEL, trust_remote_code=True, cache_dir=CACHE, token=hf_token or None)
+    model = AutoModelForSeq2SeqLM.from_pretrained(MODEL, device_map="auto", quantization_config=quantization_config, trust_remote_code=True, cache_dir=CACHE, token=hf_token or None)
 else:
-    tokenizer = AutoTokenizer.from_pretrained(MODEL, trust_remote_code=True, cache_dir=CACHE)
-    model = AutoModelForCausalLM.from_pretrained(MODEL, device_map="auto", quantization_config=quantization_config, trust_remote_code=True, cache_dir=CACHE)
+    tokenizer = AutoTokenizer.from_pretrained(MODEL, trust_remote_code=True, cache_dir=CACHE, token=hf_token or None)
+    model = AutoModelForCausalLM.from_pretrained(MODEL, device_map="auto", quantization_config=quantization_config, trust_remote_code=True, cache_dir=CACHE, token=hf_token or None)
 
 if model is not None:
     model = model.eval()
