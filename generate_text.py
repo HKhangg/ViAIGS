@@ -93,11 +93,11 @@ with torch.no_grad():
         generated_ids = model.generate(**inputs, min_new_tokens=5, max_new_tokens=200, num_return_sequences=1, do_sample=True, num_beams=1, top_k=50, top_p=0.95)
         
         if text2text:
-            result = tokenizer.decode(generated_ids[0], skip_special_token=True)
+            result = tokenizer.decode(generated_ids[0], skip_special_tokens=True)
         else:
             prompt_length = inputs['input_ids'].shape[1]
             new_tokens = generated_ids[0][prompt_length:]
-            result = tokenizer.decode(new_tokens, skip_special_token=True)
+            result = tokenizer.decode(new_tokens, skip_special_tokens=True)
             result.split('\n\n')[0]
         
         generated[index] = result
