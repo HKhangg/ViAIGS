@@ -84,11 +84,24 @@ with torch.no_grad():
         ]
 
         if hasattr(tokenizer, "apply_chat_template") and tokenizer.chat_template:
+            if "gemma" in model_name.lower():
+                gemma_user_prompt = (
+                    f"{system_prompt}\n\n"
+                    f"{user_prompt}"
+                )
+                messages = [
+                    {"role": "user", "content": gemma_user_prompt},
+                ]
+            else:
+                messages = [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ]
             inputs = tokenizer.apply_chat_template(messages, add_generation_prompt=True, return_tensors="pt", truncation=True, max_length=512).to(device)
             print("chat_template is apply")
         else:
             fallback_prompt = f'You are a helpful assistent.\n\nTask: Generate the text in Vietnamese similar to the input social media text but using different words and sentence composition.\n\nInput: {text}\n\nOutput:'
-            inputs = tokenizer(fallback_prompt, return_tensor='pt', truncation=True, max_length=512).to(device)
+            inputs = tokenizer(fallback_prompt, return_tensors='pt', truncation=True, max_length=512).to(device)
             print("chat_template is not apply")
         generated_ids = model.generate(**inputs, min_new_tokens=5, max_new_tokens=200, num_return_sequences=1, do_sample=True, num_beams=1, top_k=50, top_p=0.95)
         
