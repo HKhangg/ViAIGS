@@ -22,9 +22,27 @@ from tqdm import tqdm
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# load data
+# helper
 model_name = MODEL.split('/')[-1]
 model_name_lower = model_name.lower()
+
+is_vicuna = "vicuna" in model_name_lower
+
+def build_vicuna_prompt(system_message, user_message):
+    return(
+        f"{system_message.strip()} "
+        f"USER: {user_message.strip()} "
+        "ASSISTANT:"
+    )
+
+def clean_generated_text(text: str) -> str:
+    text = text.strip()
+    for marker in ["USER:", "ASSISTANT:"]:
+        if marker in text:
+            text = text.split(marker)[0]
+    return text.split("\n\n")[0].strip()
+
+#load data
 df = pd.read_csv(DATASET, lineterminator='\n', escapechar='\\')
 df.columns = df.columns.str.strip()
 df = df[:10]
@@ -57,6 +75,11 @@ else:
     tokenizer = AutoTokenizer.from_pretrained(MODEL, trust_remote_code=True, cache_dir=CACHE, token=hf_token or None)
     model = AutoModelForCausalLM.from_pretrained(MODEL, device_map="auto", quantization_config=quantization_config, trust_remote_code=True, cache_dir=CACHE, token=hf_token or None)
 
+eos_token_id = model.generation_config.eos_token_id
+pad_token_id = model.generation_config.pad_token_id
+if pad_token_id is None:
+    pad_token_id = tokenizer.eos_token_id
+
 if model is not None:
     model = model.eval()
 
@@ -78,9 +101,17 @@ with torch.no_grad():
             f"Input:\n{text}\n\n"
             "Output:"
         )
+        if is_vicuna:
+            vicuna_prompt = build_vicuna_prompt(system_prompt, user_prompt)
+            inputs = tokenizer(
+                vicuna_prompt,
+                return_tensors="pt",
+                truncation=True,
+                max_length=512
+            ).to(device)
+            print("vicuna prompt is applied")
 
-
-        if hasattr(tokenizer, "apply_chat_template") and tokenizer.chat_template:
+        elif hasattr(tokenizer, "apply_chat_template") and tokenizer.chat_template:
             if "gemma" in model_name.lower():
                 gemma_user_prompt = (
                     f"{system_prompt}\n\n"
@@ -97,10 +128,13 @@ with torch.no_grad():
             inputs = tokenizer.apply_chat_template(messages, add_generation_prompt=True, return_tensors="pt", truncation=True, max_length=512).to(device)
             print("chat_template is apply")
         else:
-            fallback_prompt = f'You are a helpful assistent.\n\nTask: Generate the text in Vietnamese similar to the input social media text but using different words and sentence composition.\n\nInput: {text}\n\nOutput:'
+            fallback_prompt = (
+                f"{system_prompt}\n\n"
+                f"{user_prompt}"
+            )
             inputs = tokenizer(fallback_prompt, return_tensors='pt', truncation=True, max_length=512).to(device)
             print("chat_template is not apply")
-        generated_ids = model.generate(**inputs, min_new_tokens=5, max_new_tokens=200, num_return_sequences=1, do_sample=True, num_beams=1, top_k=50, top_p=0.95)
+        generated_ids = model.generate(**inputs, min_new_tokens=5, max_new_tokens=200, num_return_sequences=1, do_sample=True, num_beams=1, top_k=50, top_p=0.95, eos_token_id=eos_token_id, pad_token_id=pad_token_id)
         
         if text2text:
             result = tokenizer.decode(generated_ids[0], skip_special_tokens=True)
@@ -108,7 +142,7 @@ with torch.no_grad():
             prompt_length = inputs['input_ids'].shape[1]
             new_tokens = generated_ids[0][prompt_length:]
             result = tokenizer.decode(new_tokens, skip_special_tokens=True)
-            result.split('\n\n')[0]
+            result = clean_generated_text(result)
         
         generated[index] = result
 
