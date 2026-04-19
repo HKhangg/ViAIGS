@@ -3,6 +3,8 @@ model:
   pretrained: mistralai/Mistral-7B-Instruct-v0.2
   torch_dtype: float16
   device_map: auto
+  device: cuda
+  load_in_4bit: true
 
 generation:
   min_new_tokens: 5
@@ -12,9 +14,5 @@ generation:
   top_k: 50
 
 data:
-  input: datasets/news_sample.json
-  output: outputs/mistral_demo_news.json
-
-postprocess:
-  max_len_delta: 10
-  min_len: 5
+  input: datasets/human.json
+  output: outputs/mistral_output.csv

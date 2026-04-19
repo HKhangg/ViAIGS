@@ -11,6 +11,9 @@ from utils.postprocess import clean_generated_text
 
 @register_model("gemma")
 class GemmaLLM(BaseLLM):
+    def __init__(self, config):
+        super().__init__(config)
+        self.load_model()
 
     def load_model(self):
         m_cfg = self.config["model"]

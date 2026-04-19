@@ -1,8 +1,7 @@
 # evaluation/tokenizer.py
-
 import os
 import pandas as pd
-from polyglot.text import Text
+from underthesea import word_tokenize
 from vncorenlp import VnCoreNLP
 
 _VNCORENLP_SEGMENTER = None
@@ -26,7 +25,15 @@ def load_vncorenlp_segmenter():
     return _VNCORENLP_SEGMENTER
 
 
-def tokenize(text, backend="polyglot", language="vi"):
+def tokenize(text, backend="underthesea", language="vi"):
+    """
+    Tokenize văn bản tiếng Việt.
+
+    backend options:
+        - "underthesea" (mặc định): dùng underthesea, tương thích Python 3.12
+        - "vncorenlp":              dùng VnCoreNLP, cần set VNCORENLP_DIR
+        - "polyglot":               legacy, KHÔNG dùng trên Python 3.12
+    """
     text = "" if pd.isna(text) else str(text).strip()
     if not text:
         return []
@@ -40,4 +47,5 @@ def tokenize(text, backend="polyglot", language="vi"):
             for token in sentence
         ]
 
-    return [str(token) for token in Text(text, hint_language_code=language).words]
+    # Mặc định: underthesea
+    return word_tokenize(text, format="text").split()
