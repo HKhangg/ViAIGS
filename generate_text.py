@@ -45,7 +45,6 @@ def clean_generated_text(text: str) -> str:
 #load data
 df = pd.read_csv(DATASET, lineterminator='\n', escapechar='\\')
 df.columns = df.columns.str.strip()
-df = df[:10]
 
 df['text'] = df['text'].astype(str)
 if "generated" in df.columns:
@@ -146,4 +145,10 @@ with torch.no_grad():
         
         generated[index] = result
 
-print(generated)
+df['generated'] = generated
+df.to_csv(DATASET.replace('.csv', f'_{model_name}.csv'), index=False, escapechar='\\')
+
+#modify to make it ready as the input to the next iteration of paraphrasing
+df['text'] = df['generated']
+df['generated'] = ""
+df.to_csv(DATASET.replace('.csv', f'_{model_name}_paraphrased.csv'), index=False, escapechar='\\')
