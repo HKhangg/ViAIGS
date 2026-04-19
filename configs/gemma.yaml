@@ -1,0 +1,18 @@
+# configs/gemma.yaml
+model:
+  name: gemma
+  pretrained: google/gemma-2-9b-it
+  load_in_4bit: true
+  device: cuda
+
+generation:
+  min_new_tokens: 5
+  max_new_tokens: 256
+  do_sample: true
+  temperature: 1.0
+  top_p: 0.95
+  top_k: 50
+
+data:
+  input: datasets/human.json
+  output: outputs

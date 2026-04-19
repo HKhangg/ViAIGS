@@ -1,0 +1,20 @@
+model:
+  name: qwen
+  pretrained: Qwen/Qwen2.5-7B-Instruct
+  torch_dtype: float16
+  device_map: auto
+
+generation:
+  min_new_tokens: 5
+  max_new_tokens: 256
+  do_sample: true
+  top_p: 0.95
+  top_k: 50
+
+data:
+  input: datasets/news_sample.json
+  output: outputs/qwen_demo_news.json
+
+postprocess:
+  max_len_delta: 10
+  min_len: 5

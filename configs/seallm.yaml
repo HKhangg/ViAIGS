@@ -1,0 +1,21 @@
+# configs/seallm.yaml
+model:
+  name: seallm
+  pretrained: SeaLLMs/SeaLLMs-v3-7B-Chat
+
+generation:
+  min_new_tokens: 5
+  max_new_tokens: 256
+  do_sample: true
+  temperature: 1.0
+  top_p: 0.95
+  top_k: 50
+  repetition_penalty: 1.1
+
+data:
+  input: datasets/news_sample.json
+  output: outputs/seallm_demo_news.json
+
+postprocess:
+  max_len_delta: 10
+  min_len: 5
