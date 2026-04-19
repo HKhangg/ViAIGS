@@ -101,7 +101,13 @@ if use_together_api:
                     top_p=0.95,
                     temperature=0.7,
                 )
-                return response.choices[0].message.content.strip()
+                result = response.choices[0].message.content.strip()
+                # truncate if result exceeds input length + 10 words
+                input_words = text.split()
+                result_words = result.split()
+                if len(result_words) > len(input_words) + 10:
+                    result = ' '.join(result_words[:len(input_words) + 10])
+                return result
             except Exception as e:
                 if "rate" in str(e).lower() or "429" in str(e):
                     wait = 2 ** attempt
@@ -202,16 +208,27 @@ else:
         ).to(device)
 
 
-    def decode_batch_outputs(inputs, generated_ids):
+    def truncate_to_input_length(result, text, extra_tokens=10):
+        input_ids = tokenizer(text)['input_ids']
+        result_ids = tokenizer(result)['input_ids']
+        max_len = len(input_ids) + extra_tokens
+        if len(result_ids) > max_len:
+            result = tokenizer.decode(result_ids[:max_len], skip_special_tokens=True)
+        return result
+
+    def decode_batch_outputs(inputs, generated_ids, batch_texts):
         if text2text:
-            return [tokenizer.decode(output, skip_special_tokens=True) for output in generated_ids]
+            decoded = [tokenizer.decode(output, skip_special_tokens=True) for output in generated_ids]
+            return [truncate_to_input_length(r, t) for r, t in zip(decoded, batch_texts)]
 
         input_length = inputs["input_ids"].shape[1]
         results = []
-        for output_ids in generated_ids:
+        for output_ids, orig_text in zip(generated_ids, batch_texts):
             new_tokens = output_ids[input_length:]
             result = tokenizer.decode(new_tokens, skip_special_tokens=True)
-            results.append(clean_generated_text(result))
+            result = clean_generated_text(result)
+            result = truncate_to_input_length(result, orig_text)
+            results.append(result)
         return results
 
     with torch.no_grad():
@@ -233,7 +250,7 @@ else:
                 pad_token_id=pad_token_id,
             )
 
-            batch_results = decode_batch_outputs(inputs, generated_ids)
+            batch_results = decode_batch_outputs(inputs, generated_ids, batch_texts)
             generated[batch_start:batch_end] = batch_results
 
 df['generated'] = generated
