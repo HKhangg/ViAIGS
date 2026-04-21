@@ -23,8 +23,22 @@ from tqdm import tqdm
 # helper
 model_name = MODEL.split('/')[-1]
 model_name_lower = model_name.lower()
-OUTPUT_PATH = f"/kaggle/working/{model_name}.csv"
-PARAPHRASED_OUTPUT_PATH = f"/kaggle/working/{model_name}_paraphrased.csv"
+
+def resolve_output_dir() -> str:
+    env_output_dir = os.getenv("OUTPUT_DIR", "").strip()
+    if env_output_dir:
+        return env_output_dir
+    if os.path.isdir("/kaggle/working"):
+        return "/kaggle/working"
+    if os.path.isdir("/content"):
+        return "/content"
+    return os.getcwd()
+
+
+OUTPUT_DIR = resolve_output_dir()
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+OUTPUT_PATH = os.path.join(OUTPUT_DIR, f"{model_name}.csv")
+PARAPHRASED_OUTPUT_PATH = os.path.join(OUTPUT_DIR, f"{model_name}_paraphrased.csv")
 
 use_together_api = bool(together_api_key)
 
