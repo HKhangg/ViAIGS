@@ -141,13 +141,25 @@ else:
     # ── Local model mode ──
     from transformers import AutoModelForCausalLM, AutoModelForSeq2SeqLM, AutoTokenizer, BitsAndBytesConfig
     import torch
+    import gc
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     #load model
     use4bit = True
     use8bit = False
-    quantization_config = BitsAndBytesConfig(llm_int8_enable_fp32_cpu_offload=True, load_in_4bit=use4bit, load_in_8bit=use8bit, bnb_4bit_quant_type="nf4", bnb_4bit_use_double_quant=True, bnb_4bit_compute_dtype=torch.bfloat16)
+    quantization_config = BitsAndBytesConfig(
+        llm_int8_enable_fp32_cpu_offload=True, 
+        load_in_4bit=use4bit, 
+        load_in_8bit=use8bit, 
+        bnb_4bit_quant_type="nf4", 
+        bnb_4bit_use_double_quant=True, 
+        bnb_4bit_compute_dtype=torch.bfloat16
+    )
+    
+    # Memory optimization
+    torch.cuda.empty_cache()
+    torch.cuda.reset_peak_memory_stats()
 
     text2text = False
     if 'aya-101' in model_name: text2text = True
@@ -165,8 +177,9 @@ else:
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token = tokenizer.eos_token
 
+    # For single sentence inference, use right padding for consistency
     if not text2text:
-        tokenizer.padding_side = "left"
+        tokenizer.padding_side = "right"  # Changed from "left" for single sentence inference
 
     eos_token_id = model.generation_config.eos_token_id
     pad_token_id = model.generation_config.pad_token_id
@@ -203,16 +216,28 @@ else:
                     ]
                     for user_prompt in user_prompts
                 ]
-            return tokenizer.apply_chat_template(
-                messages,
-                add_generation_prompt=True,
-                return_tensors="pt",
-                padding=True,
-                truncation=True,
-                max_length=512,
-            ).to(device)
+            try:
+                return tokenizer.apply_chat_template(
+                    messages,
+                    add_generation_prompt=True,
+                    return_tensors="pt",
+                    padding=True,
+                    truncation=True,
+                    max_length=512,
+                ).to(device)
+            except Exception:
+                # Fallback: simple prompt without system message
+                prompts = [user_prompt for user_prompt in user_prompts]
+                return tokenizer(
+                    prompts,
+                    return_tensors="pt",
+                    padding=True,
+                    truncation=True,
+                    max_length=512,
+                ).to(device)
 
-        prompts = [f"{system_prompt}\n\n{user_prompt}" for user_prompt in user_prompts]
+        # Default: simple prompts for single sentence inference
+        prompts = [user_prompt for user_prompt in user_prompts]
         return tokenizer(
             prompts,
             return_tensors="pt",
@@ -266,6 +291,16 @@ else:
 
             batch_results = decode_batch_outputs(inputs, generated_ids, batch_texts)
             generated[batch_start:batch_end] = batch_results
+            
+            # Clear GPU memory after each batch
+            del inputs, generated_ids
+            torch.cuda.empty_cache()
+            gc.collect()
+
+    # Clean up model after inference to free VRAM
+    del model, tokenizer
+    torch.cuda.empty_cache()
+    gc.collect()
 
 df['generated'] = generated
 df.to_csv(OUTPUT_PATH, index=False, escapechar='\\')
