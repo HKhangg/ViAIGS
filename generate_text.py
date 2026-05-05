@@ -41,6 +41,7 @@ OUTPUT_PATH = os.path.join(OUTPUT_DIR, f"{model_name}.csv")
 PARAPHRASED_OUTPUT_PATH = os.path.join(OUTPUT_DIR, f"{model_name}_paraphrased.csv")
 
 use_together_api = bool(together_api_key)
+use_openai_batch = MODEL.startswith("gpt-") and not use_together_api
 
 is_vicuna = "vicuna" in model_name_lower
 
@@ -137,7 +138,124 @@ if use_together_api:
     for i in tqdm(range(len(df)), desc="Generating via Together AI"):
         generated[i] = generate_via_api(df.iloc[i]["text"])
 
-else:
+elif use_openai_batch:
+    #OpenAI Batch API mode
+    import json
+    import jsonlines
+    import time as time_module
+    from openai import OpenAI, APIStatusError
+
+    client_openai = OpenAI(api_key=openai_api_key, organization=openai_organization)
+    print(f"Using OpenAI Batch API with model: {MODEL}")
+
+    # Create batch request file
+    def create_batch_file():
+        requests = []
+        for idx, row in enumerate(df.iterrows()):
+            text = row[1]["text"]
+            user_prompt = build_user_prompt(text)
+            
+            request = {
+                "custom_id": f"request-{idx}",
+                "method": "POST",
+                "url": "/v1/responses",
+                "body": {
+                    "model": MODEL,
+                    "instructions": system_prompt,
+                    "input": user_prompt,
+                    "max_output_tokens": 200,
+                }
+            }
+            requests.append(request)
+        return requests
+
+    def submit_batch_job():
+        print("Creating batch request file")
+        batch_requests = create_batch_file()
+        
+        # Write JSONL file
+        batch_file_path = os.path.join(OUTPUT_DIR, "batch_requests.jsonl")
+        with jsonlines.open(batch_file_path, mode='w') as writer:
+            for req in batch_requests:
+                writer.write(req)
+        
+        print(f"Submitting batch job with {len(batch_requests)} requests")
+        with open(batch_file_path, 'rb') as f:
+            batch_file = client_openai.files.create(
+                file=f,
+                purpose="batch",
+            )
+        
+        batch_job = client_openai.batches.create(
+            input_file_id=batch_file.id,
+            endpoint="/v1/responses",
+            completion_window="24h",
+        )
+        
+        print(f"Batch job submitted: {batch_job.id}")
+        print(f"Status: {batch_job.status}")
+        return batch_job.id, batch_file_path
+
+
+    def process_batch_results(batch_id):
+        print(f"[INFO] Retrieving batch results for {batch_id}...")
+        batch_job = client_openai.batches.retrieve(batch_id)
+        
+        if batch_job.status != "completed":
+            raise Exception(f"Batch job {batch_id} is not completed (status: {batch_job.status})")
+
+        results_content = client_openai.files.content(batch_job.output_file_id)
+        
+        results_by_id = {}
+        
+        for line in results_content.iter_lines():
+            if not line:
+                continue
+                
+            record = json.loads(line)
+            custom_id = record.get("custom_id")
+            
+            if record.get("error"):
+                print(f"[ERROR] Request {custom_id} failed: {record['error']}")
+                results_by_id[custom_id] = ""
+                continue
+
+            response_body = record.get("response", {}).get("body", {})
+            content = ""
+
+            if "output_text" in response_body:
+                content = response_body["output_text"]
+            
+            elif "output" in response_body:
+                outputs = response_body.get("output", [])
+                if outputs and isinstance(outputs, list):
+                    item_contents = outputs[0].get("content", [])
+                    for part in item_contents:
+                        if part.get("type") in ["text", "output_text"]:
+                            content = part.get("text", "")
+                            break
+            
+            results_by_id[custom_id] = content.strip()
+        
+        return results_by_id
+
+    # Submit batch and wait for results
+    batch_id, batch_file_path = submit_batch_job()
+    
+    # Alternative: Check if batch already completed
+    batch_job = client_openai.batches.retrieve(batch_id)
+    if batch_job.status == "completed":
+        results = process_batch_results(batch_id)
+        for idx in range(len(df)):
+            generated[idx] = results.get(f"request-{idx}", "")
+    else:
+        print(f"\n[INFO] Batch job {batch_id} is still processing.")
+        print(f"[INFO] You can check the status later with:")
+        print(f'       python -c "from openai import OpenAI; import os; client = OpenAI(api_key=os.getenv(\'OPENAI_API_KEY\')); job = client.batches.retrieve(\'{batch_id}\'); print(f\'Status: {{job.status}}\'); print(f\'Completed: {{job.request_counts.completed}}/{{job.request_counts.total}}\')')
+        print(f"[INFO] Batch ID: {batch_id}")
+        print(f"[INFO] Output directory: {OUTPUT_DIR}")
+        sys.exit(0)
+
     # ── Local model mode ──
     from transformers import AutoModelForCausalLM, AutoModelForSeq2SeqLM, AutoTokenizer, BitsAndBytesConfig
     import torch
