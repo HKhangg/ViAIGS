@@ -14,7 +14,7 @@ from transformers import (
     EvalPrediction,
     BitsAndBytesConfig
 )
-from peft import LoraConfig, get_pert_model, prepare_model_forkbit_training, TaskType
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training, TaskType
 
 set_seed(42)
 hf_token = os.getenv("HF_TOKEN", "")
@@ -71,7 +71,7 @@ if __name__ == "__main__":
     dev_dataset = ViAIGSDataset(dev_df, tokenizer)
 
     #lora
-    model = prepare_model_forkbit_training(model)  
+    model = prepare_model_for_kbit_training(model)  
     pert_config = LoraConfig(
         task_type=TaskType.SEQ_CLS,
         r=8,
