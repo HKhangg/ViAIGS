@@ -15,7 +15,9 @@ from transformers import (
     BitsAndBytesConfig
 )
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training, TaskType
+import os
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "0" # dùng để chạy trên 1 gpu
 set_seed(42)
 hf_token = os.getenv("HF_TOKEN", "")
 
