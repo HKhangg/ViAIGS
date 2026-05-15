@@ -63,7 +63,7 @@ if __name__ == "__main__":
 
 
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
-    model = AutoModelForSequenceClassification.from_pretrained(args.model_name, num_labels=2,device_map="auto", quantization_config=quantization_config, cache_dir=CACHE, token=hf_token or None)
+    model = AutoModelForSequenceClassification.from_pretrained(args.model_name, num_labels=2,device_map="auto", quantization_config=quantization_config, cache_dir="./cache/", token=hf_token or None)
 
     train_dataset = ViAIGSDataset(train_df, tokenizer)
     dev_dataset = ViAIGSDataset(dev_df, tokenizer)
