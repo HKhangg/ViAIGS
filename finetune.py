@@ -16,6 +16,7 @@ from transformers import (
 )
 
 set_seed(42)
+hf_token = os.getenv("HF_TOKEN", "")
 
 # class dataset
 class ViAIGSDataset(Dataset):
