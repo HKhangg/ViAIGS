@@ -69,7 +69,7 @@ if __name__ == "__main__":
     dev_dataset = ViAIGSDataset(dev_df, tokenizer)
 
     training_args = TrainingArguments(
-        output_dir='./results'
+        output_dir='./results',
         num_train_epochs=3,
         per_device_train_batch_size=2,
         per_device_eval_batch_size=2,
