@@ -67,7 +67,10 @@ if __name__ == "__main__":
 
 
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
-    model = AutoModelForSequenceClassification.from_pretrained(args.model_name, num_labels=2,device_map="auto", quantization_config=quantization_config, cache_dir="./cache/", token=hf_token or None)
+    model = AutoModelForSequenceClassification.from_pretrained(args.model_name, num_labels=2,device_map="auto", quantization_config=quantization_config, cache_dir="./cache/", token=hf_token or None,ignore_mismatched_sizes=True)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+        model.config.pad_token_id = model.config.eos_token_id
     if hasattr(model, "deberta"):
         model.deberta.pooler = None
     train_dataset = ViAIGSDataset(train_df, tokenizer)
@@ -81,6 +84,7 @@ if __name__ == "__main__":
         lora_alpha=16,
         target_modules=["query_proj", "key_proj", "value_proj"],
         lora_dropout=0.1,
+        modules_to_save=["classifier", "score"],
     )
     model.cuda()
     model = get_peft_model(model,pert_config)
@@ -109,6 +113,10 @@ if __name__ == "__main__":
         eval_dataset = dev_dataset,
         compute_metrics=compute_metrics
     )
+
+    for name, module in model.named_modules():
+        if "norm" in name or "classifier" in name or "score" in name:
+            module.to(torch.float32)
 
     print("Start training")
     trainer.train()
