@@ -91,6 +91,7 @@ if __name__ == "__main__":
         per_device_eval_batch_size=2,
         eval_strategy="epoch",
         save_strategy="epoch",
+        learning_rate=2e-4,
         logging_steps=10,
         load_best_model_at_end=True,
         report_to="none",
