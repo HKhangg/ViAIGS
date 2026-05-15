@@ -79,7 +79,7 @@ if __name__ == "__main__":
         target_modules=["query_proj", "key_proj", "value_proj"],
         lora_dropout=0.1,
     )
-    model = get_pert_model(model,pert_config)
+    model = get_peft_model(model,pert_config)
     model.print_trainable_parameters()
 
     training_args = TrainingArguments(
