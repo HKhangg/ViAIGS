@@ -68,7 +68,8 @@ if __name__ == "__main__":
 
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
     model = AutoModelForSequenceClassification.from_pretrained(args.model_name, num_labels=2,device_map="auto", quantization_config=quantization_config, cache_dir="./cache/", token=hf_token or None)
-
+    if hasattr(model, "deberta"):
+        model.deberta.pooler = None
     train_dataset = ViAIGSDataset(train_df, tokenizer)
     dev_dataset = ViAIGSDataset(dev_df, tokenizer)
 
@@ -81,6 +82,7 @@ if __name__ == "__main__":
         target_modules=["query_proj", "key_proj", "value_proj"],
         lora_dropout=0.1,
     )
+    model.cuda()
     model = get_peft_model(model,pert_config)
     model.print_trainable_parameters()
 
