@@ -74,13 +74,13 @@ if __name__ == "__main__":
         num_train_epochs=3,
         per_device_train_batch_size=2,
         per_device_eval_batch_size=2,
-        evaluation_strategy="epoch",
+        eval_strategy="epoch",
         save_strategy="epoch",
         logging_dir="./logs",
         logging_steps=10,
         load_best_model_at_end=True,
         report_to="none",
-        fp16=torch.cuda.is_available(),
+        bf16=torch.cuda.is_available(),
     )
 
     trainer = Trainer(
