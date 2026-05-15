@@ -38,7 +38,7 @@ class ViAIGSDataset(Dataset):
         return len(self.labels)
     
     def __getitem__(self, idx):
-        item = {key: torch.tensor(val[idx]) for key, val in self.encoding.items()}
+        item = {key: val[idx].clone().detach() for key, val in self.encoding.items()}
         item['labels'] = torch.tensor(self.labels[idx], dtype=torch.long)
         return item
 
@@ -63,7 +63,7 @@ if __name__ == "__main__":
     train_df = pd.read_csv(args.train_data)
     dev_df = pd.read_csv(args.dev_data)
 
-    quantization_config = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_use_double_quant=True, bnb_4bit_compute_dtype=torch.bfloat16) #torch.float16
+    quantization_config = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_use_double_quant=True, bnb_4bit_compute_dtype=torch.float16) #torch.float16
 
 
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
@@ -95,8 +95,9 @@ if __name__ == "__main__":
         logging_steps=10,
         load_best_model_at_end=True,
         report_to="none",
-        bf16=torch.cuda.is_available(),
+        fp16=True,
         remove_unused_columns=False,
+        gradient_checkpointing_kwargs={'use_reentrant': False},
     )
 
     trainer = Trainer(
