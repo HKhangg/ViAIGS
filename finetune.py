@@ -50,8 +50,8 @@ def compute_metrics(p: EvalPrediction):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("train_data", type=str, required=True, help="Đường dẫn file CSV")
-    parser.add_argument("dev_data", type=str, required=True, help="Đường dẫn file CSV")
+    parser.add_argument("train_data", type=str)
+    parser.add_argument("dev_data", type=str)
     parser.add_argument("model_name", type=str, default="bert-base-uncased")
     # parser.add_argument("output_dir", type=str, default="./results")
     args = parser.parse_args()
