@@ -128,28 +128,8 @@ if __name__ == "__main__":
     )
 
     print("Start training")
-    print("Label counts:\n", train_df['label'].value_counts())
-
-    # Kiểm tra label distribution
-    print("Label counts:\n", train_df['label'].value_counts())
-
-    # Xác định device
-    device = next(model.parameters()).device
-    print("Model device:", device)
-
-    # Kiểm tra 1 forward pass thủ công
-    model.eval()
-    sample = train_dataset[0]
-    with torch.no_grad():
-        out = model(
-            input_ids=sample["input_ids"].unsqueeze(0).to(device),          # ← thêm .to(device)
-            attention_mask=sample["attention_mask"].unsqueeze(0).to(device), # ← thêm .to(device)
-            labels=sample["labels"].unsqueeze(0).to(device),                 # ← thêm .to(device)
-        )
-    print("Sample loss:", out.loss)
-    print("Sample logits:", out.logits)
     
-    # trainer.train()
+    trainer.train()
     
-    # eval_metrics = trainer.evaluate()
-    # trainer.log_metrics("eval", eval_metrics)
+    eval_metrics = trainer.evaluate()
+    trainer.log_metrics("eval", eval_metrics)
