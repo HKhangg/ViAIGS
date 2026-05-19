@@ -129,6 +129,19 @@ if __name__ == "__main__":
     )
 
     print("Start training")
+    print("Label counts:\n", train_df['label'].value_counts())
+
+# Kiểm tra 1 forward pass thủ công
+    model.eval()
+    sample = train_dataset[0]
+    with torch.no_grad():
+        out = model(
+            input_ids=sample["input_ids"].unsqueeze(0),
+            attention_mask=sample["attention_mask"].unsqueeze(0),
+            labels=sample["labels"].unsqueeze(0),
+        )
+    print("Sample loss:", out.loss)        # Phải là số dương, không phải 0 hay nan
+    print("Sample logits:", out.logits)    # Phải là tensor 2 số bình thường
     trainer.train()
     
     eval_metrics = trainer.evaluate()
