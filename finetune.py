@@ -83,9 +83,7 @@ if __name__ == "__main__":
         model = get_peft_model(model,pert_config)
         model.print_trainable_parameters()
     else:
-        model = AutoModelForSequenceClassification.from_pretrained(
-            args.model_name, num_labels=2, ignore_mismatched_sizes=True
-        )
+        model = AutoModelForSequenceClassification.from_pretrained(args.model_name, num_labels=2,device_map="auto", quantization_config=quantization_config, cache_dir="./cache/", token=hf_token or None, torch_dtype=torch.float32)
         peft_config = LoraConfig(
             task_type=TaskType.SEQ_CLS,
             r=8,
@@ -95,6 +93,7 @@ if __name__ == "__main__":
             bias="none",
         )
         model = get_peft_model(model, peft_config)
+        model = model.float()
         model.print_trainable_parameters()
 
     train_dataset = ViAIGSDataset(train_df, tokenizer)
