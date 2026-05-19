@@ -106,12 +106,20 @@ if __name__ == "__main__":
 
         model = AutoModelForSequenceClassification.from_pretrained(args.model_name, num_labels=2,device_map="auto", quantization_config=quantization_config, cache_dir="./cache/", token=hf_token or None)
         #lora
+        target_map = {
+            "microsoft/mdeberta-v3-base": ["query_proj", "key_proj", "value_proj"],
+            "FacebookAI/xlm-roberta-large": [
+                "query",
+                "key",
+                "value",
+            ],
+        }
         model = prepare_model_for_kbit_training(model)  
         pert_config = LoraConfig(
             task_type=TaskType.SEQ_CLS,
             r=8,
             lora_alpha=16,
-            target_modules=["query_proj", "key_proj", "value_proj"],
+            target_modules=target_map.get(args.model_name, None),
             lora_dropout=0.1,
         )
         model = get_peft_model(model,pert_config)
