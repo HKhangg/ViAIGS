@@ -1,5 +1,5 @@
-torch
-transformers
+torch=
+transformers==5.8.1
 # accelerate>=1.13.0
 peft>=0.14.0
 bitsandbytes>=0.49.0
