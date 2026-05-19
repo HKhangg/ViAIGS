@@ -43,7 +43,7 @@ class ViAIGSDataset(Dataset):
         item['labels'] = torch.tensor(self.labels[idx], dtype=torch.long)
         return item
 
-def macro_f1_5fpr(y_true, y_score, target_fpr=0.05):
+def macro_f1_at_fpr(y_true, y_score, target_fpr=0.05):
     thresholds = np.unique(y_score)
     best_f1 = 0.0
     best_threshold = 0.5
@@ -72,7 +72,7 @@ def compute_metrics(p: EvalPrediction):
     f1 = f1_score(labels, preds, average="binary")
     auc_roc = roc_auc_score(labels, ai_probs)
 
-    macro_f1_5fpr, best_thr = macro_f1_5fpr(labels, ai_probs, target_fpr=0.05)
+    macro_f1_5fpr, best_thr = macro_f1_at_fpr(labels, ai_probs, target_fpr=0.05)
     return {
         "accuracy": acc,
         "f1": f1,
@@ -156,6 +156,7 @@ if __name__ == "__main__":
         gradient_checkpointing=True,
         gradient_checkpointing_kwargs={"use_reentrant": False},
         warmup_ratio=0.1,
+        bf16=True,
         optim="adamw_torch",
         # Thêm: clip gradient để tránh exploding gradient
         max_grad_norm=1.0,
