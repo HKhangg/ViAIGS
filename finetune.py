@@ -3,7 +3,7 @@ import os
 import pandas as pd
 import torch
 import numpy as np
-from sklearn.metrics import accuracy_score, f1_score
+from sklearn.metrics import accuracy_score, f1_score, roc_auc_score, confusion_matrix
 from torch.utils.data import Dataset
 from transformers import (
     AutoModelForSequenceClassification,
@@ -15,6 +15,7 @@ from transformers import (
     BitsAndBytesConfig
 )
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training, TaskType
+from scipy.special import softmax
 import os
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0" # dùng để chạy trên 1 gpu
@@ -42,12 +43,43 @@ class ViAIGSDataset(Dataset):
         item['labels'] = torch.tensor(self.labels[idx], dtype=torch.long)
         return item
 
+def macro_f1_5fpr(y_true, y_score, target_fpr=0.05):
+    thresholds = np.unique(y_score)
+    best_f1 = 0.0
+    best_threshold = 0.5
+    for thr in thresholds:
+        y_pred = (y_score >= thr).astype(int)
+        tn, fp, fn, tp = confusion_matrix(y_true, y_pred, labels=[0, 1]).ravel()
+        fpr = fp / (fp + tn) if (fp + tn) > 0 else 0.0
+
+        if fpr <= target_fpr:
+            f1_macro = f1_score(y_true, y_pred, average="macro")
+            if f1_macro > best_f1:
+                best_f1 = f1_macro
+                best_threshold = thr
+
+    return best_f1, best_threshold
+
+
 def compute_metrics(p: EvalPrediction):
-    preds = np.argmax(p.predictions, axis=1)
     labels = p.label_ids
+    logits = p.predictions
+
+    probs = softmax(logits, axis=1)
+    ai_probs = probs[:,1]
+    preds = np.argmax(logits, axis=1)
     acc = accuracy_score(labels, preds)
     f1 = f1_score(labels, preds, average="binary")
-    return {"accuracy": acc, "f1": f1}
+    auc_roc = roc_auc_score(labels, ai_probs)
+
+    macro_f1_5fpr, best_thr = macro_f1_5fpr(labels, ai_probs, target_fpr=0.05)
+    return {
+        "accuracy": acc,
+        "f1": f1,
+        "auc_roc": auc_roc,
+        "macro_f1_5fpr": macro_f1_5fpr,
+        "best_threshold_5fpr": best_thr,
+    }
 
 # metric
 # training loop
@@ -56,7 +88,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("train_data", type=str)
     parser.add_argument("dev_data", type=str)
-    parser.add_argument("test_data", type=str)
+    # parser.add_argument("test_data", type=str)
     parser.add_argument("model_name", type=str, default="bert-base-uncased")
     parser.add_argument("--use_perf", action="store_true")
     # parser.add_argument("output_dir", type=str, default="./results")
@@ -64,7 +96,7 @@ if __name__ == "__main__":
 
     train_df = pd.read_csv(args.train_data)
     dev_df = pd.read_csv(args.dev_data)
-    test_df = pd.read_csv(args.test_data)
+    # test_df = pd.read_csv(args.test_data)
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
 
     quantization_config = None
@@ -100,7 +132,7 @@ if __name__ == "__main__":
 
     train_dataset = ViAIGSDataset(train_df, tokenizer)
     dev_dataset = ViAIGSDataset(dev_df, tokenizer)
-    test_dataset = ViAIGSDataset(test_df, tokenizer)
+    # test_dataset = ViAIGSDataset(test_df, tokenizer)
     training_args = TrainingArguments(
         output_dir='./results',
         num_train_epochs=5,
@@ -136,6 +168,6 @@ if __name__ == "__main__":
     eval_metrics = trainer.evaluate()
     trainer.log_metrics("eval", eval_metrics)
 
-    test_metrics = trainer.evaluate(eval_dataset=test_dataset, metric_key_prefix="test")
-    trainer.log_metrics("test", test_metrics)
-    trainer.save_metrics("test", test_metrics)
+    # test_metrics = trainer.evaluate(eval_dataset=test_dataset, metric_key_prefix="test")
+    # trainer.log_metrics("test", test_metrics)
+    # trainer.save_metrics("test", test_metrics)
