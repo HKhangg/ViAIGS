@@ -38,7 +38,7 @@ class ViAIGSDataset(Dataset):
         return len(self.labels)
     
     def __getitem__(self, idx):
-        item = {key: torch.tensor(val[idx]) for key, val in self.encoding.items()}
+        item = {key: val[idx].detach().clone() for key, val in self.encoding.items()}
         item['labels'] = torch.tensor(self.labels[idx], dtype=torch.long)
         return item
 
