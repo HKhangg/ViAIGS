@@ -111,9 +111,13 @@ if __name__ == "__main__":
         logging_steps=10,
         load_best_model_at_end=True,
         report_to="none",
-        bf16 = torch.cuda.is_available(),
         remove_unused_columns=False,
-        gradient_checkpointing=False,
+        gradient_checkpointing=True,
+        gradient_checkpointing_kwargs={"use_reentrant": False},
+        warmup_ratio=0.1,
+        optim="adamw_torch",
+        # Thêm: clip gradient để tránh exploding gradient
+        max_grad_norm=1.0,
     )
 
     trainer = Trainer(
