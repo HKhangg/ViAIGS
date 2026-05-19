@@ -56,6 +56,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("train_data", type=str)
     parser.add_argument("dev_data", type=str)
+    parser.add_argument("test_data", type=str)
     parser.add_argument("model_name", type=str, default="bert-base-uncased")
     parser.add_argument("--use_perf", action="store_true")
     # parser.add_argument("output_dir", type=str, default="./results")
@@ -63,6 +64,7 @@ if __name__ == "__main__":
 
     train_df = pd.read_csv(args.train_data)
     dev_df = pd.read_csv(args.dev_data)
+    test_df = pd.read_csv(args.test_data)
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
 
     quantization_config = None
@@ -98,7 +100,7 @@ if __name__ == "__main__":
 
     train_dataset = ViAIGSDataset(train_df, tokenizer)
     dev_dataset = ViAIGSDataset(dev_df, tokenizer)
-
+    test_dataset = ViAIGSDataset(test_df, tokenizer)
     training_args = TrainingArguments(
         output_dir='./results',
         num_train_epochs=3,
@@ -133,3 +135,7 @@ if __name__ == "__main__":
     
     eval_metrics = trainer.evaluate()
     trainer.log_metrics("eval", eval_metrics)
+
+    test_metrics = trainer.evaluate(eval_dataset=test_dataset, metric_key_prefix="test")
+    trainer.log_metrics("test", test_metrics)
+    trainer.save_metrics("test", test_metrics)
