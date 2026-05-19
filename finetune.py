@@ -100,13 +100,7 @@ if __name__ == "__main__":
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
 
     quantization_config = None
-    if args.use_perf:
-        print("Xử dụng QLora")
-        quantization_config = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_use_double_quant=True, bnb_4bit_compute_dtype=torch.bfloat16) #torch.float16
-
-        model = AutoModelForSequenceClassification.from_pretrained(args.model_name, num_labels=2,device_map="auto", quantization_config=quantization_config, cache_dir="./cache/", token=hf_token or None)
-        #lora
-        target_map = {
+    target_map = {
             "microsoft/mdeberta-v3-base": ["query_proj", "key_proj", "value_proj"],
             "FacebookAI/xlm-roberta-large": [
                 "query",
@@ -114,6 +108,12 @@ if __name__ == "__main__":
                 "value",
             ],
         }
+    if args.use_perf:
+        print("Xử dụng QLora")
+        quantization_config = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_use_double_quant=True, bnb_4bit_compute_dtype=torch.bfloat16) #torch.float16
+
+        model = AutoModelForSequenceClassification.from_pretrained(args.model_name, num_labels=2,device_map="auto", quantization_config=quantization_config, cache_dir="./cache/", token=hf_token or None)
+        #lora
         model = prepare_model_for_kbit_training(model)  
         pert_config = LoraConfig(
             task_type=TaskType.SEQ_CLS,
@@ -130,7 +130,7 @@ if __name__ == "__main__":
             task_type=TaskType.SEQ_CLS,
             r=8,
             lora_alpha=16,
-            target_modules=["query_proj", "key_proj", "value_proj"],
+            target_modules=target_map.get(args.model_name, None),
             lora_dropout=0.1,
             bias="none",
         )
