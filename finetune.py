@@ -97,6 +97,8 @@ if __name__ == "__main__":
         report_to="none",
         bf16=torch.cuda.is_available(),
         remove_unused_columns=False,
+        gradient_checkpointing=True,
+        gradient_checkpointing_kwargs={"use_reentrant": False},
     )
 
     trainer = Trainer(
