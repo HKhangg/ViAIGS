@@ -38,7 +38,7 @@ class ViAIGSDataset(Dataset):
         return len(self.labels)
     
     def __getitem__(self, idx):
-        item = {key: val[idx].clone().detach() for key, val in self.encoding.items()}
+        item = {key: torch.tensor(val[idx]) for key, val in self.encoding.items()}
         item['labels'] = torch.tensor(self.labels[idx], dtype=torch.long)
         return item
 
@@ -63,16 +63,12 @@ if __name__ == "__main__":
     train_df = pd.read_csv(args.train_data)
     dev_df = pd.read_csv(args.dev_data)
 
-    quantization_config = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_use_double_quant=True, bnb_4bit_compute_dtype=torch.float32) #torch.float16
+    quantization_config = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_use_double_quant=True, bnb_4bit_compute_dtype=torch.bfloat16) #torch.float16
 
 
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
-    model = AutoModelForSequenceClassification.from_pretrained(args.model_name, num_labels=2,device_map="auto", quantization_config=quantization_config, cache_dir="./cache/", token=hf_token or None,ignore_mismatched_sizes=True)
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
-        model.config.pad_token_id = model.config.eos_token_id
-    if hasattr(model, "deberta"):
-        model.deberta.pooler = None
+    model = AutoModelForSequenceClassification.from_pretrained(args.model_name, num_labels=2,device_map="auto", quantization_config=quantization_config, cache_dir="./cache/", token=hf_token or None)
+
     train_dataset = ViAIGSDataset(train_df, tokenizer)
     dev_dataset = ViAIGSDataset(dev_df, tokenizer)
 
@@ -84,9 +80,7 @@ if __name__ == "__main__":
         lora_alpha=16,
         target_modules=["query_proj", "key_proj", "value_proj"],
         lora_dropout=0.1,
-        modules_to_save=["classifier", "score"],
     )
-    model.cuda()
     model = get_peft_model(model,pert_config)
     model.print_trainable_parameters()
 
@@ -101,9 +95,8 @@ if __name__ == "__main__":
         logging_steps=10,
         load_best_model_at_end=True,
         report_to="none",
+        bf16=torch.cuda.is_available(),
         remove_unused_columns=False,
-        gradient_checkpointing_kwargs={'use_reentrant': False},
-        max_grad_norm=1.0,
     )
 
     trainer = Trainer(
@@ -113,10 +106,6 @@ if __name__ == "__main__":
         eval_dataset = dev_dataset,
         compute_metrics=compute_metrics
     )
-
-    for name, module in model.named_modules():
-        if "norm" in name or "classifier" in name or "score" in name:
-            module.to(torch.float32)
 
     print("Start training")
     trainer.train()
