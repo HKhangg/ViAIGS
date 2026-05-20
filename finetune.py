@@ -156,7 +156,7 @@ if __name__ == "__main__":
         gradient_checkpointing=True,
         gradient_checkpointing_kwargs={"use_reentrant": False},
         warmup_ratio=0.1,
-        bf16=True,
+        bf16=False,
         optim="adamw_torch",
         # Thêm: clip gradient để tránh exploding gradient
         max_grad_norm=1.0,
