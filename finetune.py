@@ -109,6 +109,11 @@ if __name__ == "__main__":
                 "key",
                 "value",
             ],
+            "meta-llama/Meta-Llama-3-8B": [
+                "q_proj",
+                "k_proj",
+                "v_proj",
+            ],
         }
     if args.use_perf:
         print("Xử dụng QLora")
