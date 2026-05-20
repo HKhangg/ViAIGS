@@ -3,7 +3,7 @@ import os
 import pandas as pd
 import torch
 import numpy as np
-from sklearn.metrics import accuracy_score, f1_score, roc_auc_score, confusion_matrix
+from sklearn.metrics import accuracy_score, f1_score, roc_auc_score, confusion_matrix, average_precision_score
 from torch.utils.data import Dataset
 from transformers import (
     AutoModelForSequenceClassification,
@@ -71,12 +71,14 @@ def compute_metrics(p: EvalPrediction):
     acc = accuracy_score(labels, preds)
     f1 = f1_score(labels, preds, average="binary")
     auc_roc = roc_auc_score(labels, ai_probs)
+    pr_auc = average_precision_score(labels, ai_probs)
 
     macro_f1_5fpr, best_thr = macro_f1_at_fpr(labels, ai_probs, target_fpr=0.05)
     return {
         "accuracy": acc,
         "f1": f1,
         "auc_roc": auc_roc,
+        "pr_auc": pr_auc,
         "macro_f1_5fpr": macro_f1_5fpr,
         "best_threshold_5fpr": best_thr,
     }
