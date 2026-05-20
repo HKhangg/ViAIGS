@@ -100,6 +100,11 @@ if __name__ == "__main__":
     dev_df = pd.read_csv(args.dev_data)
     # test_df = pd.read_csv(args.test_data)
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
+    if tokenizer.pad_token is None:
+        if tokenizer.eos_token is not None:
+            tokenizer.pad_token = tokenizer.eos_token
+        else:
+            tokenizer.add_special_tokens({"pad_token": "[PAD]"})
 
     quantization_config = None
     target_map = {
@@ -120,6 +125,7 @@ if __name__ == "__main__":
         quantization_config = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_use_double_quant=True, bnb_4bit_compute_dtype=torch.bfloat16) #torch.float16
 
         model = AutoModelForSequenceClassification.from_pretrained(args.model_name, num_labels=2,device_map="auto", quantization_config=quantization_config, cache_dir="./cache/", token=hf_token or None)
+        model.config.pad_token_id = tokenizer.pad_token_id
         #lora
         model = prepare_model_for_kbit_training(model)  
         pert_config = LoraConfig(
@@ -133,6 +139,7 @@ if __name__ == "__main__":
         model.print_trainable_parameters()
     else:
         model = AutoModelForSequenceClassification.from_pretrained(args.model_name, num_labels=2,device_map="auto", quantization_config=quantization_config, cache_dir="./cache/", token=hf_token or None, torch_dtype=torch.float32)
+        model.config.pad_token_id = tokenizer.pad_token_id
         peft_config = LoraConfig(
             task_type=TaskType.SEQ_CLS,
             r=8,
