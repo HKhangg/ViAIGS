@@ -14,13 +14,32 @@ from transformers import (
     EvalPrediction,
     BitsAndBytesConfig
 )
-from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training, TaskType
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training, TaskType, PeftModel
 from scipy.special import softmax
 import os
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0" # dùng để chạy trên 1 gpu
 set_seed(42)
 hf_token = os.getenv("HF_TOKEN", "")
+
+target_map = {
+            "microsoft/mdeberta-v3-base": ["query_proj", "key_proj", "value_proj"],
+            "FacebookAI/xlm-roberta-large": [
+                "query",
+                "key",
+                "value",
+            ],
+            "meta-llama/Meta-Llama-3-8B": [
+                "q_proj",
+                "k_proj",
+                "v_proj",
+            ],
+            "mistralai/Mistral-7B-v0.3": [
+                "q_proj",
+                "k_proj",
+                "v_proj",
+            ],
+        }
 
 # class dataset
 class ViAIGSDataset(Dataset):
@@ -43,6 +62,7 @@ class ViAIGSDataset(Dataset):
         item['labels'] = torch.tensor(self.labels[idx], dtype=torch.long)
         return item
 
+# metric
 def macro_f1_at_fpr(y_true, y_score, target_fpr=0.05):
     thresholds = np.unique(y_score)
     best_f1 = 0.0
@@ -83,49 +103,8 @@ def compute_metrics(p: EvalPrediction):
         "best_threshold_5fpr": best_thr,
     }
 
-# metric
-# training loop
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("train_data", type=str)
-    parser.add_argument("dev_data", type=str)
-    # parser.add_argument("test_data", type=str)
-    parser.add_argument("model_name", type=str, default="bert-base-uncased")
-    parser.add_argument("--use_perf", action="store_true")
-    # parser.add_argument("output_dir", type=str, default="./results")
-    args = parser.parse_args()
-
-    train_df = pd.read_csv(args.train_data)
-    dev_df = pd.read_csv(args.dev_data)
-    # test_df = pd.read_csv(args.test_data)
-    tokenizer = AutoTokenizer.from_pretrained(args.model_name)
-    if tokenizer.pad_token is None:
-        if tokenizer.eos_token is not None:
-            tokenizer.pad_token = tokenizer.eos_token
-        else:
-            tokenizer.add_special_tokens({"pad_token": "[PAD]"})
-
-    quantization_config = None
-    target_map = {
-            "microsoft/mdeberta-v3-base": ["query_proj", "key_proj", "value_proj"],
-            "FacebookAI/xlm-roberta-large": [
-                "query",
-                "key",
-                "value",
-            ],
-            "meta-llama/Meta-Llama-3-8B": [
-                "q_proj",
-                "k_proj",
-                "v_proj",
-            ],
-            "mistralai/Mistral-7B-v0.3": [
-                "q_proj",
-                "k_proj",
-                "v_proj",
-            ],
-        }
-    if args.use_perf:
+def load_model(model, use_peft, tokenizer):
+    if use_peft:
         print("Xử dụng QLora")
         quantization_config = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_use_double_quant=True, bnb_4bit_compute_dtype=torch.bfloat16) #torch.float16
 
@@ -141,9 +120,8 @@ if __name__ == "__main__":
             lora_dropout=0.1,
         )
         model = get_peft_model(model,pert_config)
-        model.print_trainable_parameters()
     else:
-        model = AutoModelForSequenceClassification.from_pretrained(args.model_name, num_labels=2,device_map="auto", quantization_config=quantization_config, cache_dir="./cache/", token=hf_token or None, torch_dtype=torch.float32)
+        model = AutoModelForSequenceClassification.from_pretrained(args.model_name, num_labels=2,device_map="auto", cache_dir="./cache/", token=hf_token or None) #torch_dtype=torch.float32
         model.config.pad_token_id = tokenizer.pad_token_id
         peft_config = LoraConfig(
             task_type=TaskType.SEQ_CLS,
@@ -154,12 +132,26 @@ if __name__ == "__main__":
             bias="none",
         )
         model = get_peft_model(model, peft_config)
-        model = model.float()
-        model.print_trainable_parameters()
+        # model = model.float()
+
+    model.print_trainable_parameters()
+    return model
+
+def run_train(args):
+    train_df = pd.read_csv(args.train_data)
+    dev_df = pd.read_csv(args.dev_data)
+
+    tokenizer = AutoTokenizer.from_pretrained(args.model_name)
+    if tokenizer.pad_token is None:
+        if tokenizer.eos_token is not None:
+            tokenizer.pad_token = tokenizer.eos_token
+        else:
+            tokenizer.add_special_tokens({"pad_token": "[PAD]"})
+    model = load_model(args.model_name, args.use_peft, tokenizer)
 
     train_dataset = ViAIGSDataset(train_df, tokenizer)
     dev_dataset = ViAIGSDataset(dev_df, tokenizer)
-    # test_dataset = ViAIGSDataset(test_df, tokenizer)
+
     training_args = TrainingArguments(
         output_dir='./results',
         num_train_epochs=5,
@@ -172,7 +164,7 @@ if __name__ == "__main__":
         load_best_model_at_end=True,
         report_to="none",
         remove_unused_columns=False,
-        gradient_checkpointing=True,
+        gradient_checkpointing=True, # Bật cái này giảm VRAM nhưng tăng thời gian train
         gradient_checkpointing_kwargs={"use_reentrant": False},
         warmup_ratio=0.1,
         bf16=True,
@@ -190,12 +182,67 @@ if __name__ == "__main__":
     )
 
     print("Start training")
-    
     trainer.train()
     
     eval_metrics = trainer.evaluate()
     trainer.log_metrics("eval", eval_metrics)
+    trainer.save_metrics("eval", eval_metrics)
 
-    # test_metrics = trainer.evaluate(eval_dataset=test_dataset, metric_key_prefix="test")
-    # trainer.log_metrics("test", test_metrics)
-    # trainer.save_metrics("test", test_metrics)
+def load_model_from_checkpoint(checkpoint_path):
+    print(f"load checkpoint from: {checkpoint_path}")
+    model = PeftModel.from_pretrained(AutoModelForSequenceClassification.from_pretrained(checkpoint_path, num_labels=2,device_map='auto'), checkpoint_path)
+    return model
+
+def run_test(args):
+    test_df = pd.read_csv(args.test_data)
+    tokenizer = AutoTokenizer.from_pretrained(args.model_name)
+    test_dataset = ViAIGSDataset(test_df, tokenizer)
+
+    model = load_model_from_checkpoint(args.checkpoint)
+
+    eval_args = TrainingArguments(
+        output_dir='./results_test',
+        per_device_eval_batch_size=32,
+        report_to="none",
+        remove_unused_columns=False,
+        bf16=True,
+    )
+    trainer = Trainer(
+        model=model,
+        args=eval_args,
+        compute_metrics=compute_metrics,
+    )
+    print("Start testing")
+    test_metrics = trainer.evaluate(eval_dataset=test_dataset, metric_key_prefix="test")
+    trainer.log_metrics("test", test_metrics)
+    trainer.save_metrics("test", test_metrics)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers(dest="mode", required=True)
+
+    #train
+    train_parser = subparsers.add_parser("train")
+    train_parser.add_argument("train_data", type=str)
+    train_parser.add_argument("dev_data", type=str)
+    train_parser.add_argument("model_name", type=str)
+    train_parser.add_argument("--use_perf", action="store_true")
+
+    #test
+    test_parser = subparsers.add_parser("test")
+    test_parser.add_argument("test_data", type=str)
+    test_parser.add_argument("checkpoint", type=str)
+
+    args = parser.parse_args()
+
+    if args.mode == 'train':
+        run_train(args)
+    elif args.mode == 'test':
+        run_test(args)
+
+# Train
+# python finetune.py train train.csv dev.csv microsoft/mdeberta-v3-base --use_peft
+
+# Test with checkpoint
+# python finetune.py test test.csv microsoft/mdeberta-v3-base ./results/checkpoint-1000
