@@ -119,6 +119,11 @@ if __name__ == "__main__":
                 "k_proj",
                 "v_proj",
             ],
+            "mistralai/Mistral-7B-v0.3": [
+                "q_proj",
+                "k_proj",
+                "v_proj",
+            ],
         }
     if args.use_perf:
         print("Xử dụng QLora")
