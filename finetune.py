@@ -232,6 +232,7 @@ if __name__ == "__main__":
     #test
     test_parser = subparsers.add_parser("test")
     test_parser.add_argument("test_data", type=str)
+    test_parser.add_argument("model_name", type=str)
     test_parser.add_argument("checkpoint", type=str)
 
     args = parser.parse_args()
@@ -242,7 +243,7 @@ if __name__ == "__main__":
         run_test(args)
 
 # Train
-# python finetune.py train train.csv dev.csv microsoft/mdeberta-v3-base --use_peft
+# python finetune.py train "train.csv" "dev.csv" "microsoft/mdeberta-v3-base" --use_peft
 
 # Test with checkpoint
-# python finetune.py test test.csv microsoft/mdeberta-v3-base ./results/checkpoint-1000
+# python finetune.py test "test.csv" "microsoft/mdeberta-v3-base" "./results/checkpoint-1000"
