@@ -112,14 +112,14 @@ def load_model(model, use_peft, tokenizer):
         model.config.pad_token_id = tokenizer.pad_token_id
         #lora
         model = prepare_model_for_kbit_training(model)  
-        pert_config = LoraConfig(
+        peft_config = LoraConfig(
             task_type=TaskType.SEQ_CLS,
             r=8,
             lora_alpha=16,
             target_modules=target_map.get(args.model_name, None),
             lora_dropout=0.1,
         )
-        model = get_peft_model(model,pert_config)
+        model = get_peft_model(model,peft_config)
     else:
         model = AutoModelForSequenceClassification.from_pretrained(args.model_name, num_labels=2,device_map="auto", cache_dir="./cache/", token=hf_token or None) #torch_dtype=torch.float32
         model.config.pad_token_id = tokenizer.pad_token_id
@@ -190,7 +190,7 @@ def run_train(args):
 
 def load_model_from_checkpoint(model_name, checkpoint_path):
     print(f"load checkpoint from: {checkpoint_path}")
-    base_model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2, cache_dir="./cache/", token=hf_token or None, ignore_mismatched_sizes=True, torch_dtype=torch.float32)
+    base_model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2, cache_dir="./cache/", token=hf_token or None, torch_dtype=torch.float32) #on torch.float32 to run /mdeberta-v3-base
     model = PeftModel.from_pretrained(base_model, checkpoint_path)
     return model.float()
 
@@ -244,7 +244,7 @@ if __name__ == "__main__":
     train_parser.add_argument("train_data", type=str)
     train_parser.add_argument("dev_data", type=str)
     train_parser.add_argument("model_name", type=str)
-    train_parser.add_argument("--use_perf", action="store_true")
+    train_parser.add_argument("--use_peft", action="store_true")
 
     #test
     test_parser = subparsers.add_parser("test")
