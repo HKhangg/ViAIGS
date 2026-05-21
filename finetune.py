@@ -188,18 +188,24 @@ def run_train(args):
     trainer.log_metrics("eval", eval_metrics)
     trainer.save_metrics("eval", eval_metrics)
 
-def load_model_from_checkpoint(model_name, checkpoint_path):
+def load_model_from_checkpoint(model_name, checkpoint_path, tokenizer):
     print(f"load checkpoint from: {checkpoint_path}")
     base_model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2, cache_dir="./cache/", token=hf_token or None,) #on torch.float32 to run /mdeberta-v3-base
+    base_model.config.pad_token_id = tokenizer.pad_token_id
     model = PeftModel.from_pretrained(base_model, checkpoint_path)
     return model
 
 def run_test(args):
     test_df = pd.read_csv(args.test_data)
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
+    if tokenizer.pad_token is None:
+        if tokenizer.eos_token is not None:
+            tokenizer.pad_token = tokenizer.eos_token
+        else:
+            tokenizer.add_special_tokens({"pad_token": "[PAD]"})
     test_dataset = ViAIGSDataset(test_df, tokenizer)
 
-    model = load_model_from_checkpoint(args.model_name, args.checkpoint)
+    model = load_model_from_checkpoint(args.model_name, args.checkpoint, tokenizer)
 
     eval_args = TrainingArguments(
         output_dir='./results_test',
