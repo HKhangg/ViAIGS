@@ -190,9 +190,9 @@ def run_train(args):
 
 def load_model_from_checkpoint(model_name, checkpoint_path):
     print(f"load checkpoint from: {checkpoint_path}")
-    base_model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2, cache_dir="./cache/", token=hf_token or None, torch_dtype=torch.float32) #on torch.float32 to run /mdeberta-v3-base
+    base_model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2, cache_dir="./cache/", token=hf_token or None,) #on torch.float32 to run /mdeberta-v3-base
     model = PeftModel.from_pretrained(base_model, checkpoint_path)
-    return model.float()
+    return model
 
 def run_test(args):
     test_df = pd.read_csv(args.test_data)
