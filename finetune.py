@@ -217,6 +217,22 @@ def run_test(args):
     trainer.log_metrics("test", test_metrics)
     trainer.save_metrics("test", test_metrics)
 
+    print("Saving prediction")
+    raw_output = trainer.predict(test_dataset)
+    probs = softmax(raw_output.predictions, axis=1)
+
+    result_df = test_df.copy()
+    result_df["prob_human"] = probs[:, 0]
+    result_df["prob_ai"] = probs[:, 1]
+    result_df["pred_label"] = np.argmax(raw_output.predictions, axis=1)
+
+    best_thr = test_metrics.get("test_best_threshold_5fpr", 0.5)
+    result_df["pred_label_5fpr"] = (probs[:, 1] >= best_thr).astype(int)
+
+    out_path = os.path.splitext(args.test_data)[0] + "_predictions.csv"
+    result_df.to_csv(out_path, index=False)
+    print(f"Predictions saved to: {out_path}")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
