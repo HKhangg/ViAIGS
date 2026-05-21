@@ -188,9 +188,10 @@ def run_train(args):
     trainer.log_metrics("eval", eval_metrics)
     trainer.save_metrics("eval", eval_metrics)
 
-def load_model_from_checkpoint(checkpoint_path):
+def load_model_from_checkpoint(model_name, checkpoint_path):
     print(f"load checkpoint from: {checkpoint_path}")
-    model = PeftModel.from_pretrained(AutoModelForSequenceClassification.from_pretrained(checkpoint_path, num_labels=2,device_map='auto'), checkpoint_path)
+    base_model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2, cache_dir="./cache/", token=hf_token or None, ignore_mismatched_sizes=True)
+    model = PeftModel.from_pretrained(base_model, checkpoint_path)
     return model
 
 def run_test(args):
@@ -198,7 +199,7 @@ def run_test(args):
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
     test_dataset = ViAIGSDataset(test_df, tokenizer)
 
-    model = load_model_from_checkpoint(args.checkpoint)
+    model = load_model_from_checkpoint(args.model_name, args.checkpoint)
 
     eval_args = TrainingArguments(
         output_dir='./results_test',
