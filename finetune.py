@@ -230,7 +230,7 @@ def run_test(args):
     best_thr = test_metrics.get("test_best_threshold_5fpr", 0.5)
     result_df["pred_label_5fpr"] = (probs[:, 1] >= best_thr).astype(int)
 
-    out_path = os.path.splitext(args.test_data)[0] + "_predictions.csv"
+    out_path = "predictions.csv"
     result_df.to_csv(out_path, index=False)
     print(f"Predictions saved to: {out_path}")
 
