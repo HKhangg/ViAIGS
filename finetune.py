@@ -201,6 +201,30 @@ def run_test(args):
 
     model = load_model_from_checkpoint(args.model_name, args.checkpoint)
 
+        # ── Debug: kiểm tra weights có phải random không ──────────
+    for name, param in model.named_parameters():
+        if "lora" in name and param.requires_grad:
+            print(f"{name}: mean={param.data.mean():.6f}, std={param.data.std():.6f}")
+            break
+    # Nếu std gần 0 hoặc mean = 0 chính xác → weights chưa được load
+    # Nếu std ~ 0.01-0.1 và mean khác 0 → weights đã load đúng
+
+    # ── Debug: chạy thử 1 sample ──────────────────────────────
+    device = next(model.parameters()).device
+    model.eval()
+    sample = test_dataset[0]
+    with torch.no_grad():
+        out = model(
+            input_ids=sample["input_ids"].unsqueeze(0).to(device),
+            attention_mask=sample["attention_mask"].unsqueeze(0).to(device),
+            labels=sample["labels"].unsqueeze(0).to(device),
+        )
+    print("True label:", sample["labels"].item())
+    print("Loss:", out.loss.item())
+    print("Logits:", out.logits)
+    print("Predicted:", out.logits.argmax(-1).item())
+    # ──────────────────────────────────────────────────────────
+
     eval_args = TrainingArguments(
         output_dir='./results_test',
         per_device_eval_batch_size=32,
