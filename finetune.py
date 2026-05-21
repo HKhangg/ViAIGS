@@ -103,12 +103,12 @@ def compute_metrics(p: EvalPrediction):
         "best_threshold_5fpr": best_thr,
     }
 
-def load_model(model, use_peft, tokenizer):
+def load_model(model_name, use_peft, tokenizer):
     if use_peft:
         print("Xử dụng QLora")
         quantization_config = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_use_double_quant=True, bnb_4bit_compute_dtype=torch.bfloat16) #torch.float16
 
-        model = AutoModelForSequenceClassification.from_pretrained(args.model_name, num_labels=2,device_map="auto", quantization_config=quantization_config, cache_dir="./cache/", token=hf_token or None)
+        model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2,device_map="auto", quantization_config=quantization_config, cache_dir="./cache/", token=hf_token or None)
         model.config.pad_token_id = tokenizer.pad_token_id
         #lora
         model = prepare_model_for_kbit_training(model)  
@@ -116,18 +116,18 @@ def load_model(model, use_peft, tokenizer):
             task_type=TaskType.SEQ_CLS,
             r=8,
             lora_alpha=16,
-            target_modules=target_map.get(args.model_name, None),
+            target_modules=target_map.get(model_name, None),
             lora_dropout=0.1,
         )
         model = get_peft_model(model,peft_config)
     else:
-        model = AutoModelForSequenceClassification.from_pretrained(args.model_name, num_labels=2,device_map="auto", cache_dir="./cache/", token=hf_token or None) #torch_dtype=torch.float32
+        model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2,device_map="auto", cache_dir="./cache/", token=hf_token or None) #torch_dtype=torch.float32
         model.config.pad_token_id = tokenizer.pad_token_id
         peft_config = LoraConfig(
             task_type=TaskType.SEQ_CLS,
             r=8,
             lora_alpha=16,
-            target_modules=target_map.get(args.model_name, None),
+            target_modules=target_map.get(model_name, None),
             lora_dropout=0.1,
             bias="none",
         )
@@ -188,9 +188,23 @@ def run_train(args):
     trainer.log_metrics("eval", eval_metrics)
     trainer.save_metrics("eval", eval_metrics)
 
-def load_model_from_checkpoint(model_name, checkpoint_path, tokenizer):
+    print("Saving best adapter model")
+    trainer.save_model("./best_adapter_model")
+    tokenizer.save_pretrained("./best_adapter_model")
+
+def load_model_from_checkpoint(model_name, checkpoint_path, tokenizer, use_peft=False):
     print(f"load checkpoint from: {checkpoint_path}")
-    base_model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2, cache_dir="./cache/", token=hf_token or None,) #on torch.float32 to run /mdeberta-v3-base
+    if use_peft:
+        quantization_config = BitsAndBytesConfig(
+            load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_use_double_quant=True, bnb_4bit_compute_dtype=torch.bfloat16
+        )
+        base_model = AutoModelForSequenceClassification.from_pretrained(
+            model_name, num_labels=2, cache_dir="./cache/", token=hf_token or None, quantization_config=quantization_config, device_map="auto"
+        )
+    else:
+        base_model = AutoModelForSequenceClassification.from_pretrained(
+            model_name, num_labels=2, cache_dir="./cache/", token=hf_token or None, torch_dtype=torch.bfloat16, device_map="auto"
+        )
     base_model.config.pad_token_id = tokenizer.pad_token_id
     model = PeftModel.from_pretrained(base_model, checkpoint_path)
     return model
@@ -228,7 +242,8 @@ def run_test(args):
 
     print("Saving predictions")
     probs = softmax(raw_output.predictions, axis=1)
-    best_thr = test_metrics.get("test_best_threshold_5fpr", 0.5)
+
+    best_thr = args.dev_threshold 
 
     result_df = test_df.copy()
     result_df["prob_human"] = probs[:, 0]
@@ -257,6 +272,8 @@ if __name__ == "__main__":
     test_parser.add_argument("test_data", type=str)
     test_parser.add_argument("model_name", type=str)
     test_parser.add_argument("checkpoint", type=str)
+    test_parser.add_argument("--use_peft", action="store_true")
+    test_parser.add_argument("--dev_threshold", type=float)
 
     args = parser.parse_args()
 
