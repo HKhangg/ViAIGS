@@ -190,9 +190,9 @@ def run_train(args):
 
 def load_model_from_checkpoint(model_name, checkpoint_path):
     print(f"load checkpoint from: {checkpoint_path}")
-    base_model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2, cache_dir="./cache/", token=hf_token or None, ignore_mismatched_sizes=True)
+    base_model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2, cache_dir="./cache/", token=hf_token or None, ignore_mismatched_sizes=True, torch_dtype=torch.float32)
     model = PeftModel.from_pretrained(base_model, checkpoint_path)
-    return model
+    return model.float()
 
 def run_test(args):
     test_df = pd.read_csv(args.test_data)
@@ -206,7 +206,7 @@ def run_test(args):
         per_device_eval_batch_size=32,
         report_to="none",
         remove_unused_columns=False,
-        bf16=True,
+        bf16=False,
     )
     trainer = Trainer(
         model=model,
