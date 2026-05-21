@@ -189,48 +189,9 @@ def run_train(args):
     trainer.save_metrics("eval", eval_metrics)
 
 def load_model_from_checkpoint(model_name, checkpoint_path):
-    print(f"Load checkpoint from: {checkpoint_path}")
-
-    # Bước 1: Load base model với classification head (weights random)
-    base_model = AutoModelForSequenceClassification.from_pretrained(
-        model_name,
-        num_labels=2,
-        cache_dir="./cache/",
-        token=hf_token or None,
-        torch_dtype=torch.float32,
-        ignore_mismatched_sizes=True,
-    )
-
-    # Bước 2: Load LoRA adapter (chứa query/key/value weights đã train)
+    print(f"load checkpoint from: {checkpoint_path}")
+    base_model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2, cache_dir="./cache/", token=hf_token or None,) #on torch.float32 to run /mdeberta-v3-base
     model = PeftModel.from_pretrained(base_model, checkpoint_path)
-    model = model.float()
-
-    # Bước 3: Load classifier + pooler từ file model weights trong checkpoint
-    # Trainer save toàn bộ model state vào đây
-    weight_file = os.path.join(checkpoint_path, "model.safetensors")
-    if not os.path.exists(weight_file):
-        weight_file = os.path.join(checkpoint_path, "pytorch_model.bin")
-
-    if os.path.exists(weight_file):
-        print(f"Loading full weights from: {weight_file}")
-        from safetensors.torch import load_file
-        import safetensors
-
-        if weight_file.endswith(".safetensors"):
-            state_dict = load_file(weight_file)
-        else:
-            state_dict = torch.load(weight_file, map_location="cpu")
-
-        # Chỉ load classifier và pooler, bỏ qua phần còn lại
-        keys_to_load = {k: v for k, v in state_dict.items()
-                        if "classifier" in k or "pooler" in k}
-        print(f"Loading keys: {list(keys_to_load.keys())}")
-        missing, unexpected = model.load_state_dict(keys_to_load, strict=False)
-        print(f"Missing: {missing}")
-        print(f"Unexpected: {unexpected}")
-    else:
-        print("WARNING: Không tìm thấy weight file trong checkpoint!")
-
     return model
 
 def run_test(args):
@@ -245,7 +206,7 @@ def run_test(args):
         per_device_eval_batch_size=32,
         report_to="none",
         remove_unused_columns=False,
-        bf16=False,
+        bf16=True,
     )
     trainer = Trainer(
         model=model,
