@@ -189,9 +189,48 @@ def run_train(args):
     trainer.save_metrics("eval", eval_metrics)
 
 def load_model_from_checkpoint(model_name, checkpoint_path):
-    print(f"load checkpoint from: {checkpoint_path}")
-    base_model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2, cache_dir="./cache/", token=hf_token or None,) #on torch.float32 to run /mdeberta-v3-base
+    print(f"Load checkpoint from: {checkpoint_path}")
+
+    # Bước 1: Load base model với classification head (weights random)
+    base_model = AutoModelForSequenceClassification.from_pretrained(
+        model_name,
+        num_labels=2,
+        cache_dir="./cache/",
+        token=hf_token or None,
+        torch_dtype=torch.float32,
+        ignore_mismatched_sizes=True,
+    )
+
+    # Bước 2: Load LoRA adapter (chứa query/key/value weights đã train)
     model = PeftModel.from_pretrained(base_model, checkpoint_path)
+    model = model.float()
+
+    # Bước 3: Load classifier + pooler từ file model weights trong checkpoint
+    # Trainer save toàn bộ model state vào đây
+    weight_file = os.path.join(checkpoint_path, "model.safetensors")
+    if not os.path.exists(weight_file):
+        weight_file = os.path.join(checkpoint_path, "pytorch_model.bin")
+
+    if os.path.exists(weight_file):
+        print(f"Loading full weights from: {weight_file}")
+        from safetensors.torch import load_file
+        import safetensors
+
+        if weight_file.endswith(".safetensors"):
+            state_dict = load_file(weight_file)
+        else:
+            state_dict = torch.load(weight_file, map_location="cpu")
+
+        # Chỉ load classifier và pooler, bỏ qua phần còn lại
+        keys_to_load = {k: v for k, v in state_dict.items()
+                        if "classifier" in k or "pooler" in k}
+        print(f"Loading keys: {list(keys_to_load.keys())}")
+        missing, unexpected = model.load_state_dict(keys_to_load, strict=False)
+        print(f"Missing: {missing}")
+        print(f"Unexpected: {unexpected}")
+    else:
+        print("WARNING: Không tìm thấy weight file trong checkpoint!")
+
     return model
 
 def run_test(args):
@@ -200,30 +239,6 @@ def run_test(args):
     test_dataset = ViAIGSDataset(test_df, tokenizer)
 
     model = load_model_from_checkpoint(args.model_name, args.checkpoint)
-
-        # ── Debug: kiểm tra weights có phải random không ──────────
-    for name, param in model.named_parameters():
-        if "lora" in name and param.requires_grad:
-            print(f"{name}: mean={param.data.mean():.6f}, std={param.data.std():.6f}")
-            break
-    # Nếu std gần 0 hoặc mean = 0 chính xác → weights chưa được load
-    # Nếu std ~ 0.01-0.1 và mean khác 0 → weights đã load đúng
-
-    # ── Debug: chạy thử 1 sample ──────────────────────────────
-    device = next(model.parameters()).device
-    model.eval()
-    sample = test_dataset[0]
-    with torch.no_grad():
-        out = model(
-            input_ids=sample["input_ids"].unsqueeze(0).to(device),
-            attention_mask=sample["attention_mask"].unsqueeze(0).to(device),
-            labels=sample["labels"].unsqueeze(0).to(device),
-        )
-    print("True label:", sample["labels"].item())
-    print("Loss:", out.loss.item())
-    print("Logits:", out.logits)
-    print("Predicted:", out.logits.argmax(-1).item())
-    # ──────────────────────────────────────────────────────────
 
     eval_args = TrainingArguments(
         output_dir='./results_test',
