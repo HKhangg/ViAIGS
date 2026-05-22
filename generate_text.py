@@ -94,7 +94,7 @@ def build_user_prompt(text):
 
 
 if use_together_api:
-    # ── Together AI API mode ──
+    #Together AI API mode
     from together import Together
 
     client = Together(api_key=together_api_key)
@@ -256,81 +256,49 @@ elif use_openai_batch:
         print(f"[INFO] Output directory: {OUTPUT_DIR}")
         sys.exit(0)
 
-    # ── Local model mode ──
-    from transformers import AutoModelForCausalLM, AutoModelForSeq2SeqLM, AutoTokenizer, BitsAndBytesConfig
-    import torch
+# ── Local model mode ──
+from transformers import AutoModelForCausalLM, AutoModelForSeq2SeqLM, AutoTokenizer, BitsAndBytesConfig
+import torch
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    #load model
-    use4bit = True
-    use8bit = False
-    quantization_config = BitsAndBytesConfig(llm_int8_enable_fp32_cpu_offload=True, load_in_4bit=use4bit, load_in_8bit=use8bit, bnb_4bit_quant_type="nf4", bnb_4bit_use_double_quant=True, bnb_4bit_compute_dtype=torch.bfloat16)
+#load model
+use4bit = True
+use8bit = False
+quantization_config = BitsAndBytesConfig(llm_int8_enable_fp32_cpu_offload=True, load_in_4bit=use4bit, load_in_8bit=use8bit, bnb_4bit_quant_type="nf4", bnb_4bit_use_double_quant=True, bnb_4bit_compute_dtype=torch.bfloat16)
 
-    text2text = False
-    if 'aya-101' in model_name: text2text = True
+text2text = False
+if 'aya-101' in model_name: text2text = True
 
-    tokenizer = None
-    model = None
+tokenizer = None
+model = None
 
-    if text2text:
-        tokenizer = AutoTokenizer.from_pretrained(MODEL, trust_remote_code=True, cache_dir=CACHE, token=hf_token or None)
-        model = AutoModelForSeq2SeqLM.from_pretrained(MODEL, device_map="auto", quantization_config=quantization_config, trust_remote_code=True, cache_dir=CACHE, token=hf_token or None)
-    else:
-        tokenizer = AutoTokenizer.from_pretrained(MODEL, trust_remote_code=True, cache_dir=CACHE, token=hf_token or None)
-        model = AutoModelForCausalLM.from_pretrained(MODEL, device_map="auto", quantization_config=quantization_config, trust_remote_code=True, cache_dir=CACHE, token=hf_token or None)
+if text2text:
+    tokenizer = AutoTokenizer.from_pretrained(MODEL, trust_remote_code=True, cache_dir=CACHE, token=hf_token or None)
+    model = AutoModelForSeq2SeqLM.from_pretrained(MODEL, device_map="auto", quantization_config=quantization_config, trust_remote_code=True, cache_dir=CACHE, token=hf_token or None)
+else:
+    tokenizer = AutoTokenizer.from_pretrained(MODEL, trust_remote_code=True, cache_dir=CACHE, token=hf_token or None)
+    model = AutoModelForCausalLM.from_pretrained(MODEL, device_map="auto", quantization_config=quantization_config, trust_remote_code=True, cache_dir=CACHE, token=hf_token or None)
 
-    if tokenizer.pad_token_id is None:
-        tokenizer.pad_token = tokenizer.eos_token
+if tokenizer.pad_token_id is None:
+    tokenizer.pad_token = tokenizer.eos_token
 
-    if not text2text:
-        tokenizer.padding_side = "left"
+if not text2text:
+    tokenizer.padding_side = "left"
 
-    eos_token_id = model.generation_config.eos_token_id
-    pad_token_id = model.generation_config.pad_token_id
-    if pad_token_id is None:
-        pad_token_id = tokenizer.eos_token_id
+eos_token_id = model.generation_config.eos_token_id
+pad_token_id = model.generation_config.pad_token_id
+if pad_token_id is None:
+    pad_token_id = tokenizer.eos_token_id
 
-    if model is not None:
-        model = model.eval()
+if model is not None:
+    model = model.eval()
 
-    def build_batch_inputs(texts):
-        user_prompts = [build_user_prompt(text) for text in texts]
+def build_batch_inputs(texts):
+    user_prompts = [build_user_prompt(text) for text in texts]
 
-        if is_vicuna:
-            prompts = [build_vicuna_prompt(system_prompt, user_prompt) for user_prompt in user_prompts]
-            return tokenizer(
-                prompts,
-                return_tensors="pt",
-                padding=True,
-                truncation=True,
-                max_length=512,
-            ).to(device)
-
-        if hasattr(tokenizer, "apply_chat_template") and tokenizer.chat_template:
-            if "gemma" in model_name.lower():
-                messages = [
-                    [{"role": "user", "content": f"{system_prompt}\n\n{user_prompt}"}]
-                    for user_prompt in user_prompts
-                ]
-            else:
-                messages = [
-                    [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt},
-                    ]
-                    for user_prompt in user_prompts
-                ]
-            return tokenizer.apply_chat_template(
-                messages,
-                add_generation_prompt=True,
-                return_tensors="pt",
-                padding=True,
-                truncation=True,
-                max_length=512,
-            ).to(device)
-
-        prompts = [f"{system_prompt}\n\n{user_prompt}" for user_prompt in user_prompts]
+    if is_vicuna:
+        prompts = [build_vicuna_prompt(system_prompt, user_prompt) for user_prompt in user_prompts]
         return tokenizer(
             prompts,
             return_tensors="pt",
@@ -339,51 +307,87 @@ elif use_openai_batch:
             max_length=512,
         ).to(device)
 
+    if hasattr(tokenizer, "apply_chat_template") and tokenizer.chat_template:
+        if "gemma" in model_name.lower():
+            messages = [
+                [{"role": "user", "content": f"{system_prompt}\n\n{user_prompt}"}]
+                for user_prompt in user_prompts
+            ]
+        else:
+            messages = [
+                [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ]
+                for user_prompt in user_prompts
+            ]
 
-    def truncate_to_input_length(result, text, extra_tokens=10):
-        input_ids = tokenizer(text)['input_ids']
-        result_ids = tokenizer(result)['input_ids']
-        max_len = len(input_ids) + extra_tokens
-        if len(result_ids) > max_len:
-            result = tokenizer.decode(result_ids[:max_len], skip_special_tokens=True)
-        return result
+        templated =  tokenizer.apply_chat_template(
+            messages,
+            add_generation_prompt=True,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=512,
+            return_dict=True,
+        )
 
-    def decode_batch_outputs(inputs, generated_ids, batch_texts):
-        if text2text:
-            decoded = [tokenizer.decode(output, skip_special_tokens=True) for output in generated_ids]
-            return [truncate_to_input_length(r, t) for r, t in zip(decoded, batch_texts)]
+        return {k: v.to(device) for k, v in templated.items()}
 
-        input_length = inputs["input_ids"].shape[1]
-        results = []
-        for output_ids, orig_text in zip(generated_ids, batch_texts):
-            new_tokens = output_ids[input_length:]
-            result = tokenizer.decode(new_tokens, skip_special_tokens=True)
-            result = clean_generated_text(result)
-            result = truncate_to_input_length(result, orig_text)
-            results.append(result)
-        return results
+    prompts = [f"{system_prompt}\n\n{user_prompt}" for user_prompt in user_prompts]
+    return tokenizer(
+        prompts,
+        return_tensors="pt",
+        padding=True,
+        truncation=True,
+        max_length=512,
+    ).to(device)
 
-    with torch.no_grad():
-        for batch_start in tqdm(range(0, len(df), BATCH_SIZE), total=(len(df) + BATCH_SIZE - 1) // BATCH_SIZE):
-            batch_end = min(batch_start + BATCH_SIZE, len(df))
-            batch_texts = df.iloc[batch_start:batch_end]["text"].tolist()
 
-            inputs = build_batch_inputs(batch_texts)
-            generated_ids = model.generate(
-                **inputs,
-                min_new_tokens=5,
-                max_new_tokens=200,
-                num_return_sequences=1,
-                do_sample=True,
-                num_beams=1,
-                top_k=50,
-                top_p=0.95,
-                eos_token_id=eos_token_id,
-                pad_token_id=pad_token_id,
-            )
+def truncate_to_input_length(result, text, extra_tokens=10):
+    input_ids = tokenizer(text)['input_ids']
+    result_ids = tokenizer(result)['input_ids']
+    max_len = len(input_ids) + extra_tokens
+    if len(result_ids) > max_len:
+        result = tokenizer.decode(result_ids[:max_len], skip_special_tokens=True)
+    return result
 
-            batch_results = decode_batch_outputs(inputs, generated_ids, batch_texts)
-            generated[batch_start:batch_end] = batch_results
+def decode_batch_outputs(inputs, generated_ids, batch_texts):
+    if text2text:
+        decoded = [tokenizer.decode(output, skip_special_tokens=True) for output in generated_ids]
+        return [truncate_to_input_length(r, t) for r, t in zip(decoded, batch_texts)]
+
+    input_length = inputs["input_ids"].shape[1]
+    results = []
+    for output_ids, orig_text in zip(generated_ids, batch_texts):
+        new_tokens = output_ids[input_length:]
+        result = tokenizer.decode(new_tokens, skip_special_tokens=True)
+        result = clean_generated_text(result)
+        result = truncate_to_input_length(result, orig_text)
+        results.append(result)
+    return results
+
+with torch.no_grad():
+    for batch_start in tqdm(range(0, len(df), BATCH_SIZE), total=(len(df) + BATCH_SIZE - 1) // BATCH_SIZE):
+        batch_end = min(batch_start + BATCH_SIZE, len(df))
+        batch_texts = df.iloc[batch_start:batch_end]["text"].tolist()
+
+        inputs = build_batch_inputs(batch_texts)
+        generated_ids = model.generate(
+            **inputs,
+            min_new_tokens=5,
+            max_new_tokens=200,
+            num_return_sequences=1,
+            do_sample=True,
+            num_beams=1,
+            top_k=50,
+            top_p=0.95,
+            eos_token_id=eos_token_id,
+            pad_token_id=pad_token_id,
+        )
+
+        batch_results = decode_batch_outputs(inputs, generated_ids, batch_texts)
+        generated[batch_start:batch_end] = batch_results
 
 df['generated'] = generated
 df.to_csv(OUTPUT_PATH, index=False, escapechar='\\')
