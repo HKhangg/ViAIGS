@@ -256,7 +256,7 @@ elif use_openai_batch:
         print(f"[INFO] Output directory: {OUTPUT_DIR}")
         sys.exit(0)
 
-# ── Local model mode ──
+#Local model mode
 from transformers import AutoModelForCausalLM, AutoModelForSeq2SeqLM, AutoTokenizer, BitsAndBytesConfig
 import torch
 
