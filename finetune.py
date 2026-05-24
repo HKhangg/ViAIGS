@@ -154,9 +154,9 @@ def run_train(args):
 
     training_args = TrainingArguments(
         output_dir='./results',
-        num_train_epochs=5,
-        per_device_train_batch_size=128,
-        per_device_eval_batch_size=128,
+        num_train_epochs=4,
+        per_device_train_batch_size=64,
+        per_device_eval_batch_size=64,
         eval_strategy="epoch",
         save_strategy="epoch",
         learning_rate=2e-4,
@@ -281,9 +281,3 @@ if __name__ == "__main__":
         run_train(args)
     elif args.mode == 'test':
         run_test(args)
-
-# Train
-# python finetune.py train "train.csv" "dev.csv" "microsoft/mdeberta-v3-base" --use_peft
-
-# Test with checkpoint
-# python finetune.py test "test.csv" "microsoft/mdeberta-v3-base" "./results/checkpoint-1000"
