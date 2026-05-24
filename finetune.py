@@ -164,8 +164,7 @@ def run_train(args):
         load_best_model_at_end=True,
         report_to="none",
         remove_unused_columns=False,
-        gradient_checkpointing=True, # Bật cái này giảm VRAM nhưng tăng thời gian train
-        gradient_checkpointing_kwargs={"use_reentrant": False},
+        gradient_checkpointing=False, # gradient_checkpointing_kwargs={"use_reentrant": False}
         warmup_ratio=0.1,
         bf16=True,
         optim="adamw_torch",
