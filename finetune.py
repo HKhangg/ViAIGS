@@ -81,27 +81,38 @@ def macro_f1_at_fpr(y_true, y_score, target_fpr=0.05):
     return best_f1, best_threshold
 
 
-def compute_metrics(p: EvalPrediction):
+def compute_metrics_basic(p):
     labels = p.label_ids
     logits = p.predictions
-
     probs = softmax(logits, axis=1)
-    ai_probs = probs[:,1]
+    ai_probs = probs[:, 1]
     preds = np.argmax(logits, axis=1)
-    acc = accuracy_score(labels, preds)
-    f1 = f1_score(labels, preds, average="binary")
-    auc_roc = roc_auc_score(labels, ai_probs)
-    pr_auc = average_precision_score(labels, ai_probs)
 
-    macro_f1_5fpr, best_thr = macro_f1_at_fpr(labels, ai_probs, target_fpr=0.05)
     return {
-        "accuracy": acc,
-        "f1": f1,
-        "auc_roc": auc_roc,
-        "pr_auc": pr_auc,
-        "macro_f1_5fpr": macro_f1_5fpr,
-        "best_threshold_5fpr": best_thr,
+        "accuracy": accuracy_score(labels, preds),
+        "f1": f1_score(labels, preds),
+        "auc_roc": roc_auc_score(labels, ai_probs),
+        "pr_auc": average_precision_score(labels, ai_probs),
     }
+
+def compute_metrics_with_threshold(threshold):
+    def _compute(p):
+        labels = p.label_ids
+        logits = p.predictions
+        probs = softmax(logits, axis=1)
+        ai_probs = probs[:, 1]
+        preds = np.argmax(logits, axis=1)
+        preds_thr = (ai_probs >= threshold).astype(int)
+
+        return {
+            "accuracy": accuracy_score(labels, preds),
+            "f1": f1_score(labels, preds),
+            "accuracy_thr": accuracy_score(labels, preds_thr),
+            "f1_thr": f1_score(labels, preds_thr, average="macro"),
+            "auc_roc": roc_auc_score(labels, ai_probs),
+            "pr_auc": average_precision_score(labels, ai_probs),
+        }
+    return _compute
 
 def load_model(model_name, use_peft, tokenizer):
     if use_peft:
@@ -178,17 +189,20 @@ def run_train(args):
         args = training_args,
         train_dataset = train_dataset,
         eval_dataset = dev_dataset,
-        compute_metrics=compute_metrics
+        compute_metrics=compute_metrics_basic
     )
 
     print("Start training")
     trainer.train()
-    
-    eval_metrics = trainer.evaluate()
-    trainer.log_metrics("eval", eval_metrics)
-    trainer.save_metrics("eval", eval_metrics)
 
-    print("Saving best adapter model")
+    dev_output = trainer.predict(dev_dataset)
+    dev_probs = softmax(dev_output.predictions, axis=1)[:, 1]
+    dev_labels = dev_output.label_ids
+
+    dev_macro_f1_5fpr, best_thr = macro_f1_at_fpr(dev_labels, dev_probs, target_fpr=0.05)
+    print("Dev best threshold:", best_thr)
+    print("Dev macro F1 @ 5% FPR:", dev_macro_f1_5fpr)
+
     trainer.save_model("./best_adapter_model")
     tokenizer.save_pretrained("./best_adapter_model")
 
@@ -219,7 +233,7 @@ def run_test(args):
             tokenizer.add_special_tokens({"pad_token": "[PAD]"})
     test_dataset = ViAIGSDataset(test_df, tokenizer)
 
-    model = load_model_from_checkpoint(args.model_name, args.checkpoint, tokenizer)
+    model = load_model_from_checkpoint(args.model_name, args.checkpoint, tokenizer, use_peft=args.use_peft)
 
     eval_args = TrainingArguments(
         output_dir='./results_test',
@@ -231,7 +245,7 @@ def run_test(args):
     trainer = Trainer(
         model=model,
         args=eval_args,
-        compute_metrics=compute_metrics,
+        compute_metrics=compute_metrics_with_threshold(args.dev_threshold),
     )
     print("Start testing")
     raw_output = trainer.predict(test_dataset, metric_key_prefix="test")
