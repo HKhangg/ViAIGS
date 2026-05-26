@@ -24,6 +24,11 @@ hf_token = os.getenv("HF_TOKEN", "")
 
 target_map = {
             "microsoft/mdeberta-v3-base": ["query_proj", "key_proj", "value_proj"],
+            "google-bert/bert-base-multilingual-cased": [
+                "query",
+                "key",
+                "value",
+            ],
             "FacebookAI/xlm-roberta-large": [
                 "query",
                 "key",
