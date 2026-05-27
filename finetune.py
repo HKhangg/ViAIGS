@@ -171,8 +171,8 @@ def run_train(args):
     training_args = TrainingArguments(
         output_dir='./results',
         num_train_epochs=4,
-        per_device_train_batch_size=64,
-        per_device_eval_batch_size=64,
+        per_device_train_batch_size=128,
+        per_device_eval_batch_size=128,
         eval_strategy="epoch",
         save_strategy="epoch",
         learning_rate=2e-4,
