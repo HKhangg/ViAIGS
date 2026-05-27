@@ -137,7 +137,7 @@ def load_model(model_name, use_peft, tokenizer):
         )
         model = get_peft_model(model,peft_config)
     else:
-        model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2,device_map="auto", cache_dir="./cache/", token=hf_token or None) #torch_dtype=torch.float32
+        model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2,device_map="auto", cache_dir="./cache/", token=hf_token or None, torch_dtype=torch.float32) #torch_dtype=torch.float32
         model.config.pad_token_id = tokenizer.pad_token_id
         peft_config = LoraConfig(
             task_type=TaskType.SEQ_CLS,
@@ -148,7 +148,7 @@ def load_model(model_name, use_peft, tokenizer):
             bias="none",
         )
         model = get_peft_model(model, peft_config)
-        # model = model.float()
+        model = model.float()
 
     model.print_trainable_parameters()
     return model
