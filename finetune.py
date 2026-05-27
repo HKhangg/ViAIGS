@@ -24,7 +24,7 @@ hf_token = os.getenv("HF_TOKEN", "")
 
 target_map = {
             "microsoft/mdeberta-v3-base": ["query_proj", "key_proj", "value_proj"],
-            "vinai/phobert-base-v2": [
+            "vinai/phobert-base": [
                 "query",
                 "key",
                 "value",
