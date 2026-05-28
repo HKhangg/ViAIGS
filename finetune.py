@@ -53,7 +53,7 @@ target_map = {
 
 # class dataset
 class ViAIGSDataset(Dataset):
-    def __init__(self, df, tokenizer, max_length=512):
+    def __init__(self, df, tokenizer, max_length=256):
         self.encoding = tokenizer(
             df['text'].astype(str).to_list(),
             add_special_tokens = True,
