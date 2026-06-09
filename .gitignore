@@ -10,3 +10,7 @@ cache/
 *.log
 *.out
 *.csv_*
+*.csv
+*.json
+/datasets
+/outputs
