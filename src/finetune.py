@@ -58,7 +58,7 @@ target_map = {
 
 # class dataset
 class ViAIGSDataset(Dataset):
-    def __init__(self, df, tokenizer, max_length=512):
+    def __init__(self, df, tokenizer, max_length=256):
         self.encoding = tokenizer(
             df['text'].astype(str).to_list(),
             add_special_tokens = True,
@@ -180,7 +180,7 @@ def run_train(args):
 
     training_args = TrainingArguments(
         output_dir='./results',
-        num_train_epochs=4,
+        num_train_epochs=10,
         per_device_train_batch_size=32,
         per_device_eval_batch_size=32,
         eval_strategy="epoch",
