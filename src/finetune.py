@@ -39,6 +39,11 @@ target_map = {
                 "key",
                 "value",
             ],
+            "huynhtin/ViCLSR":[
+                "query",
+                "key",
+                "value",
+            ],
             "meta-llama/Meta-Llama-3-8B": [
                 "q_proj",
                 "k_proj",
